@@ -41,7 +41,9 @@ app.use(session({
     collectionName: 'sessions'
   }),
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000 ,// 24 hours
+    sameSite: 'none',
+    secure: true
   }
 }));
 
@@ -107,7 +109,7 @@ app.get('/auth/google/student/callback',
       email: req.user.emailId,
       role: 'student'
     }));
-    res.redirect(`http://localhost:5173/Signin/student?token=${token}&user=${userData}`);
+    res.redirect(`${process.env.CLIENT_URL}/Signin/student?token=${token}&user=${userData}`);
   }
 );
 
@@ -132,7 +134,7 @@ app.get('/auth/google/company/callback',
       email: req.user.emailId,
       role: 'company'
     }));
-    res.redirect(`http://localhost:5173/Signin/company?token=${token}&user=${userData}`);
+    res.redirect(`${process.env.CLIENT_URL}/Signin/company?token=${token}&user=${userData}`);
   }
 );
 
@@ -157,7 +159,7 @@ app.get('/auth/google/admin/callback',
       email: req.user.emailId,
       role: 'admin'
     }));
-    res.redirect(`http://localhost:5173/Signin/admin?token=${token}&user=${userData}`);
+    res.redirect(`${process.env.CLIENT_URL}/Signin/admin?token=${token}&user=${userData}`);
   }
 );
 
@@ -171,5 +173,5 @@ app.use('/logout', logout);
 // Start Server
 // ----------------------
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server running on port ${port}`);
 });
