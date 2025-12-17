@@ -105,9 +105,15 @@ function SearchStudent() {
     }
 
     try {
+      const auth = JSON.parse(localStorage.getItem('auth'));
       const res = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/admin/students/search?${params.toString()}`,
-        { credentials: 'include' }
+        { method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${auth?.token}`,
+          },
+         }
       );
       const data = await res.json();
       setStudents(data.students || []);
