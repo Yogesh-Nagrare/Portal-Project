@@ -16,6 +16,7 @@ function JobsSection({ jobs: initialJobs, company, branches }) {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     setJobs(initialJobs || [])
@@ -68,9 +69,12 @@ function JobsSection({ jobs: initialJobs, company, branches }) {
         formData.append('jd_file', jobData.jdFile, jobData.jdFile.name)
       }
 
+      const auth = JSON.parse(localStorage.getItem('auth'))
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/company/jobs`, {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${auth?.token}`,
+        },
         body: formData,
       })
 
@@ -342,6 +346,7 @@ function JobsSection({ jobs: initialJobs, company, branches }) {
         <div className="mt-6 border-t pt-6">
           <h3 className="text-lg font-medium mb-4">Create Job Posting</h3>
           {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
+          {success && <div className="mb-3 text-sm text-green-600">{success}</div>}
           <form onSubmit={handleJobSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Job Title</label>

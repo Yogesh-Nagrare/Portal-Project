@@ -57,9 +57,9 @@ function CompanyDashboard() {
         if (!isAdminView) {
           // Fetch jobs
           const jobsResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/company/jobs`, {
-            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
+              Authorization: `Bearer ${auth?.token}`,
             },
           })
           if (jobsResponse.ok) {

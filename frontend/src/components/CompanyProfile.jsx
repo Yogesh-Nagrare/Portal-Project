@@ -84,7 +84,7 @@ function CompanyProfile({ company }) {
 
       <div className="mt-6 flex gap-4">
         <button
-          onClick={() => navigate('/edit')}
+          onClick={() => navigate('/company/dashboard/edit')}
           className="bg-cyan-700/85 text-white px-6 py-2 rounded hover:bg-cyan-900"
         >
           Edit Profile
