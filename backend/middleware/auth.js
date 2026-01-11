@@ -2,20 +2,19 @@ const jwt = require('jsonwebtoken');
 
 const requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = decoded;
       return next();
-    } catch (err) {
+    } catch {
       return res.status(401).json({ message: 'Invalid token' });
     }
   }
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.status(401).json({ message: 'Unauthorized' });
+
+  return res.status(401).json({ message: 'Unauthorized' });
 };
 
 const requireRole = (role) => (req, res, next) => {

@@ -24,7 +24,7 @@ const jobSchema = new mongoose.Schema({
   location: {
     type: String,
   },
-   branch: {           // <-- updated to array for multiple branches
+  branch: {
     type: [String],
     default: [],
   },
@@ -38,6 +38,20 @@ const jobSchema = new mongoose.Schema({
   jd_public_id: {
     type: String,
     default: null
+  },
+  // NEW FIELDS
+  isApproved: {
+    type: Boolean,
+    default: false,  // Jobs start as not approved
+  },
+  visibleToStudents: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'Student',
+    default: [],  // Array of student IDs who can see this job
+  },
+  isVisibleToAll: {
+    type: Boolean,
+    default: false,  // If true, all students can see
   },
   createdDate: {
     type: Date,

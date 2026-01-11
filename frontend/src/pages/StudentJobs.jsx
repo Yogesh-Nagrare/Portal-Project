@@ -1,285 +1,551 @@
 import React, { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import JobDetailModal from '../components/JobDetailModal'
+import { X, Send, Users, CheckCircle, Clock, Search, Filter } from 'lucide-react'
+
+/* ===================== CONSTANT DATA ===================== */
+const branches = [
+  'Computer Science & Engineering',
+  'Information Technology',
+  'Electronics & Telecommunication',
+  'Mechanical Engineering',
+  'Civil Engineering',
+  'Electrical Engineering'
+];
+
+const domainMapping = {
+  'Computer Science & Engineering': [
+    'Web Development','Mobile Development','Data Science','Machine Learning',
+    'Cybersecurity','Cloud Computing','DevOps','Blockchain','AI/ML','IoT',
+    'Software Engineering','Database Management'
+  ],
+  'Information Technology': [
+    'Web Development','Mobile Development','Data Science','Cybersecurity',
+    'Cloud Computing','DevOps','Network Administration','System Administration',
+    'Database Management','AI/ML','Blockchain','IoT'
+  ],
+  'Electronics & Telecommunication': [
+    'Embedded Systems','IoT','Signal Processing','Communication Systems',
+    'VLSI Design','Robotics','Control Systems','Wireless Communication',
+    'Digital Electronics','Analog Electronics','Telecommunication','Network Security'
+  ],
+  'Mechanical Engineering': [
+    'CAD/CAM','Robotics','Automotive Engineering','Manufacturing',
+    'Thermal Engineering','Fluid Mechanics','Materials Science','Structural Analysis',
+    'Mechatronics','Quality Control','Product Design','HVAC Systems'
+  ],
+  'Civil Engineering': [
+    'Structural Engineering','Geotechnical Engineering','Transportation Engineering',
+    'Environmental Engineering','Construction Management','Surveying','Water Resources',
+    'Urban Planning','Building Information Modeling','Project Management',
+    'Sustainable Design','Infrastructure Development'
+  ],
+  'Electrical Engineering': [
+    'Power Systems','Control Systems','Electrical Machines','Renewable Energy',
+    'Electronics','Instrumentation','Automation','Smart Grids','Embedded Systems',
+    'Signal Processing','Electrical Design','Maintenance Engineering'
+  ]
+};
 
 function StudentJobs({ role }) {
-
-  // List of branches for the dropdown
-  const branches = [
-    'Computer Science & Engineering',
-    'Information Technology',
-    'Electronics & Telecommunication',
-    'Mechanical Engineering',
-    'Civil Engineering',
-    'Electrical Engineering'
-  ];
-  const [jobs, setJobs] = useState([])
-  const [applications, setApplications] = useState([])
+  // Common states
   const [loading, setLoading] = useState(true)
-  const [applying, setApplying] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [activeTab, setActiveTab] = useState('jobs')
+  const [activeTab, setActiveTab] = useState(role === 'admin' ? 'pending' : 'jobs')
+
+  // Student states
+  const [jobs, setJobs] = useState([])
+  const [applications, setApplications] = useState([])
+  const [applying, setApplying] = useState(null)
   const [selectedJob, setSelectedJob] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [branchSearch, setBranchSearch] = useState('') // search input
+  const [branchSearch, setBranchSearch] = useState('')
+
+  // Admin states
+  const [pendingJobs, setPendingJobs] = useState([])
+  const [approvedJobs, setApprovedJobs] = useState([])
+  const [students, setStudents] = useState([])
+  const [showSendModal, setShowSendModal] = useState(false)
+  const [selectedStudents, setSelectedStudents] = useState([])
+  const [sendToAll, setSendToAll] = useState(false)
+  const [sending, setSending] = useState(false)
+  
+  // Admin Search States
+  const [searchType, setSearchType] = useState('name');
+  const [searchCriteria, setSearchCriteria] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
 
   const { user } = useSelector((state) => state.auth)
 
   useEffect(() => {
-    fetchJobs()
-    fetchApplications()
-  }, [])
+    if (role === 'admin') {
+      fetchPendingJobs()
+      fetchApprovedJobs()
+      fetchStudents()
+    } else {
+      fetchJobs()
+      fetchApplications()
+    }
+  }, [role])
 
-  const fetchJobs = async () => {
+  const getAuthToken = () => {
+    const auth = JSON.parse(localStorage.getItem('auth'))
+    return auth?.token
+  }
+
+  /* ===================== ADMIN FUNCTIONS ===================== */
+  const fetchPendingJobs = async () => {
     try {
-      const auth = JSON.parse(localStorage.getItem('auth'))
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/student/jobs`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth?.token}` },
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/jobs/pending`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       })
       if (response.ok) {
         const data = await response.json()
-        setJobs(data)
-      } else {
-        setError('Failed to fetch jobs')
+        setPendingJobs(data)
       }
-    } catch (err) {
-      console.error('Error fetching jobs:', err)
-      setError('Error fetching jobs')
-    } finally {
-      setLoading(false)
+    } catch (err) { setError('Failed to fetch pending jobs') }
+    finally { setLoading(false) }
+  }
+
+  const fetchApprovedJobs = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/jobs/approved`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      })
+      if (response.ok) setApprovedJobs(await response.json())
+    } catch (err) { console.error(err) }
+  }
+
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/students`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      })
+      if (response.ok) setStudents(await response.json())
+    } catch (err) { console.error(err) }
+  }
+
+  const openSendModal = (job) => {
+    setSelectedJob(job)
+    setShowSendModal(true)
+    setSelectedStudents([])
+    setSendToAll(false)
+    setSearchType('name')
+    setSearchCriteria('')
+    setSelectedBranch('')
+  }
+
+  const sendJobToStudents = async () => {
+    if (!sendToAll && selectedStudents.length === 0) {
+      setError('Please select at least one student or choose "Send to All"')
+      return
     }
+    setSending(true)
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/jobs/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
+        body: JSON.stringify({ jobId: selectedJob._id, studentIds: sendToAll ? [] : selectedStudents, sendToAll }),
+      })
+      if (response.ok) {
+        setSuccess('Job sent to students successfully!')
+        setShowSendModal(false)
+        fetchPendingJobs(); fetchApprovedJobs();
+        setTimeout(() => setSuccess(''), 3000)
+      }
+    } catch (err) { setError('Error sending job') }
+    finally { setSending(false) }
+  }
+
+  const revokeJob = async (jobId) => {
+    if (!confirm('Are you sure you want to revoke this job?')) return
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/admin/jobs/${jobId}/revoke`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${getAuthToken()}` },
+      })
+      if (response.ok) {
+        setSuccess('Job revoked successfully')
+        fetchPendingJobs(); fetchApprovedJobs();
+      }
+    } catch (err) { setError('Failed to revoke job') }
+  }
+
+  /* ===================== STUDENT FUNCTIONS ===================== */
+  const fetchJobs = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/student/jobs`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      })
+      if (response.ok) setJobs(await response.json())
+    } catch (err) { setError('Error fetching jobs') }
+    finally { setLoading(false) }
   }
 
   const fetchApplications = async () => {
     try {
-      const auth = JSON.parse(localStorage.getItem('auth'))
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/student/applications`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth?.token}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       })
-      if (response.ok) {
-        const data = await response.json()
-        setApplications(data)
-      }
-    } catch (err) {
-      console.error('Error fetching applications:', err)
-    }
+      if (response.ok) setApplications(await response.json())
+    } catch (err) { console.error('Error fetching applications:', err) }
   }
 
   const applyForJob = async (jobId) => {
     setApplying(jobId)
-    setError('')
-    setSuccess('')
-
+    setError(''); setSuccess('');
     try {
-      const auth = JSON.parse(localStorage.getItem('auth'))
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/student/jobs/apply`, {
         method: 'POST',
-        
-        headers: { 'Content-Type': 'application/json' , Authorization: `Bearer ${auth?.token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAuthToken()}` },
         body: JSON.stringify({ jobId })
       })
-
       if (response.ok) {
         setSuccess('Application submitted successfully!')
-        fetchApplications()
+        await fetchApplications(); // Refresh applications to update UI status
+        setTimeout(() => setSuccess(''), 3000)
       } else {
-        const errorData = await response.json()
-        setError(errorData.message || 'Failed to apply for job')
+        const data = await response.json()
+        setError(data.message || 'Failed to apply')
       }
-    } catch (err) {
-      console.error('Error applying for job:', err)
-      setError('Error applying for job')
-    } finally {
-      setApplying(null)
-    }
+    } catch (err) { setError('Error applying for job') }
+    finally { setApplying(null) }
   }
 
-  const isApplied = (jobId) => applications.some(app => app.jobId._id === jobId)
+  // ID Matching helper (checks for object or string ID)
+  const isApplied = (jobId) => applications.some(app => (app.jobId?._id || app.jobId) === jobId)
+  
   const getApplicationStatus = (jobId) => {
-    const application = applications.find(app => app.jobId._id === jobId)
+    const application = applications.find(app => (app.jobId?._id || app.jobId) === jobId)
     return application ? application.status : null
   }
 
-  // Filter jobs by branch search
+  /* ===================== FILTERING LOGIC ===================== */
+  const filteredStudents = students.filter(student => {
+    if (!searchCriteria && searchType !== 'branch' && searchType !== 'domain') return true;
+    if (searchType === 'name') return student.name.toLowerCase().includes(searchCriteria.toLowerCase());
+    if (searchType === 'rollNumber') return student.rollNumber.toLowerCase().includes(searchCriteria.toLowerCase());
+    if (searchType === 'branch') return !searchCriteria || student.branch === searchCriteria;
+    if (searchType === 'domain') {
+      const matchesBranch = !selectedBranch || student.branch === selectedBranch;
+      const matchesDomain = !searchCriteria || (student.domain && student.domain.includes(searchCriteria));
+      return matchesBranch && matchesDomain;
+    }
+    return true;
+  });
+
   const filteredJobs = jobs.filter(job => {
     if (!branchSearch) return true
-    if (!job.branch || !Array.isArray(job.branch)) return false
-    return job.branch.includes(branchSearch)
+    return job.branch && Array.isArray(job.branch) && job.branch.includes(branchSearch)
   })
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-700/85 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading jobs...</p>
+  const handleStudentToggle = (id) => setSelectedStudents(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  const handleSelectAll = () => setSelectedStudents(selectedStudents.length === filteredStudents.length ? [] : filteredStudents.map(s => s._id))
+
+  const renderSearchInput = () => {
+    if (searchType === 'branch') {
+      return (
+        <select value={searchCriteria} onChange={e => setSearchCriteria(e.target.value)} className="flex-1 p-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 outline-none">
+          <option value="">Select Branch</option>
+          {branches.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
+      );
+    }
+    if (searchType === 'domain') {
+      const domains = selectedBranch ? domainMapping[selectedBranch] || [] : [];
+      return (
+        <div className="flex flex-col md:flex-row gap-2 flex-1">
+          <select value={selectedBranch} onChange={e => { setSelectedBranch(e.target.value); setSearchCriteria(''); }} className="flex-1 p-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 outline-none">
+            <option value="">Select Branch First</option>
+            {branches.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <select value={searchCriteria} onChange={e => setSearchCriteria(e.target.value)} disabled={!selectedBranch} className="flex-1 p-2.5 bg-white border border-gray-200 rounded-xl disabled:bg-gray-50 outline-none">
+            <option value="">Select Domain</option>
+            {domains.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
         </div>
+      );
+    }
+    return (
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <input type="text" placeholder={`Search by ${searchType}...`} value={searchCriteria} onChange={e => setSearchCriteria(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 outline-none" />
       </div>
-    )
-  }
+    );
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen bg-white">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-cyan-600"></div>
+    </div>
+  )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-cyan-700/85 mb-8">Job Portal</h1>
+    <div className="min-h-screen bg-white text-slate-800">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {role === 'admin' ? 'Job Management' : 'Career Portal'}
+            </h1>
+            <p className="text-slate-500 text-sm mt-1 uppercase tracking-wider font-semibold">
+              {role === 'admin' ? 'Placement Cell Administration' : 'Explore opportunities & track growth'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-cyan-50 text-cyan-700 rounded-full border border-cyan-100 font-bold text-xs">
+             <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+             {role.toUpperCase()} SESSION
+          </div>
+        </div>
+        
+        {error && <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-700 font-medium text-sm animate-in fade-in slide-in-from-top-2">{error}</div>}
+        {success && <div className="mb-6 p-4 bg-cyan-50 border-l-4 border-cyan-500 rounded-r-xl text-cyan-700 font-medium text-sm animate-in fade-in slide-in-from-top-2">{success}</div>}
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200 mb-6">
-          <button
-            onClick={() => setActiveTab('jobs')}
-            className={`px-6 py-3 font-medium ${
-              activeTab === 'jobs' ? 'border-b-2 border-cyan-700/85 text-cyan-700/85' : 'text-gray-600 hover:text-cyan-700/85'
-            }`}
-          >
-            Available Jobs
-          </button>
-          {role === 'student' && (
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`px-6 py-3 font-medium ${
-                activeTab === 'applications' ? 'border-b-2 border-cyan-700/85 text-cyan-700/85' : 'text-gray-600 hover:text-cyan-700/85'
-              }`}
-            >
-              My Applications
-            </button>
+        {/* Professional Tab Switcher */}
+        <div className="flex p-1 bg-slate-100 rounded-xl w-fit mb-8">
+          {role === 'admin' ? (
+            <>
+              <button onClick={() => setActiveTab('pending')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'pending' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                Pending ({pendingJobs.length})
+              </button>
+              <button onClick={() => setActiveTab('approved')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'approved' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                Approved ({approvedJobs.length})
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setActiveTab('jobs')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'jobs' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                Discover Jobs
+              </button>
+              <button onClick={() => setActiveTab('applications')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'applications' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                My Applications ({applications.length})
+              </button>
+            </>
           )}
         </div>
 
-        {/* Error / Success Messages */}
-        {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>}
-        {success && <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">{success}</div>}
-
-        {/* Search Bar */}
-        {/* // Replace search input with dropdown */}
-        {activeTab === 'jobs' && (
-          <div className="mb-6">
-            <select
-              value={branchSearch}
-              onChange={(e) => setBranchSearch(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            >
-              <option value="">All Branches</option>
-              {branches.map((branch, index) => (
-                <option key={index} value={branch}>{branch}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {/* Jobs Tab */}
-        {activeTab === 'jobs' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJobs.map((job) => (
-              <div
-                key={job._id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => { setSelectedJob(job); setIsModalOpen(true) }}
-              >
-                <div className="mb-4">
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">{job.title}</h3>
-                  <p className="text-cyan-600 font-medium">{job.companyId.name}</p>
-                  <p className="text-gray-500 text-sm">{job.companyId.location}</p>
-                  {job.branch && Array.isArray(job.branch) && job.branch.length > 0 && <p className="text-gray-500 text-sm">Branch: {job.branch.join(', ')}</p>}
-                </div>
-                <div className="mb-4">
-                  <p className="text-gray-600 text-sm mb-2 line-clamp-3">{job.description}</p>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {job.requirements && Array.isArray(job.requirements) && job.requirements.slice(0, 3).map((req, index) => (
-                      <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">{req}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <div className="flex justify-between items-center text-sm text-gray-600">
-                    <span>Salary: {job.salary ? `₹${job.salary}` : 'Not specified'}</span>
-                    <span>Deadline: {new Date(job.deadline).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  {isApplied(job._id) ? (
-                    <span className={`px-3 py-1 rounded text-sm font-medium ${
-                      getApplicationStatus(job._id) === 'accepted' ? 'bg-green-100 text-green-700' :
-                      getApplicationStatus(job._id) === 'rejected' ? 'bg-red-100 text-red-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {getApplicationStatus(job._id) === 'accepted' ? 'Accepted' :
-                       getApplicationStatus(job._id) === 'rejected' ? 'Rejected' :
-                       'Applied'}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); applyForJob(job._id) }}
-                      disabled={applying === job._id}
-                      className="bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700 disabled:opacity-50 text-sm font-medium"
-                    >
-                      {applying === job._id ? 'Applying...' : 'Apply Now'}
+        {/* ADMIN VIEW */}
+        {role === 'admin' && (
+          <div className="animate-in fade-in duration-500">
+            {activeTab === 'pending' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pendingJobs.map((job) => (
+                  <div key={job._id} className="bg-white rounded-2xl border border-slate-200 p-6 hover:border-cyan-300 transition-all shadow-sm flex flex-col">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{job.title}</h3>
+                      <p className="text-cyan-600 font-bold text-xs uppercase tracking-wide mt-1">{job.companyId?.name}</p>
+                    </div>
+                    <p className="text-slate-500 text-sm mb-6 line-clamp-3 leading-relaxed flex-1">{job.description}</p>
+                    <button onClick={() => openSendModal(job)} className="w-full bg-cyan-600 text-white py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm hover:bg-cyan-700 transition shadow-lg shadow-cyan-100">
+                      <Send size={16} /> Send to Students
                     </button>
-                  )}
-                </div>
+                  </div>
+                ))}
+                {pendingJobs.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 font-medium italic">No pending jobs found.</div>}
               </div>
-            ))}
-            {filteredJobs.length === 0 && (
-              <div className="col-span-full text-center py-12">
-                <p className="text-gray-500 text-lg">No jobs available for this branch.</p>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="divide-y divide-slate-100">
+                  {approvedJobs.map((job) => (
+                    <div key={job._id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
+                      <div>
+                        <h3 className="text-md font-bold text-slate-900">{job.title}</h3>
+                        <p className="text-cyan-600 text-xs font-bold uppercase">{job.companyId?.name}</p>
+                      </div>
+                      <button onClick={() => revokeJob(job._id)} className="px-4 py-2 text-red-500 text-xs font-bold border border-red-100 rounded-lg hover:bg-red-50 transition">Revoke Listing</button>
+                    </div>
+                  ))}
+                  {approvedJobs.length === 0 && <div className="p-12 text-center text-slate-400 font-medium italic">No approved jobs available.</div>}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Applications Tab */}
-        {activeTab === 'applications' && role === 'student' && (
-          <div className="bg-white rounded-lg shadow-md">
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">My Applications</h2>
-              {applications.length > 0 ? (
-                <div className="space-y-4">
-                  {applications.map((application) => (
-                    <div key={application._id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start">
+        {/* STUDENT VIEW */}
+        {role === 'student' && (
+          <div className="animate-in fade-in duration-500">
+            {activeTab === 'jobs' ? (
+              <>
+                <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="relative w-full md:w-80">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <select value={branchSearch} onChange={(e) => setBranchSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm font-semibold text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all appearance-none">
+                      <option value="">Filter by Branch</option>
+                      {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Showing {filteredJobs.length} live opportunities
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredJobs.map((job) => (
+                    <div key={job._id} className="group bg-white rounded-3xl border border-slate-100 p-7 hover:border-cyan-300 hover:shadow-xl transition-all cursor-pointer relative" onClick={() => { setSelectedJob(job); setIsModalOpen(true) }}>
+                      <div className="mb-6">
+                        <h3 className="text-xl font-bold text-slate-900 group-hover:text-cyan-600 transition-colors mb-1">{job.title}</h3>
+                        <p className="text-cyan-600 font-bold text-xs uppercase tracking-widest">{job.companyId?.name}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-8">
                         <div>
-                          <h3 className="font-semibold text-gray-700">{application.jobId.title}</h3>
-                          <p className="text-cyan-600">{application.companyId.name}</p>
-                          <p className="text-gray-500 text-sm">{application.companyId.location}</p>
-                          <p className="text-gray-600 text-sm mt-1">{application.jobId.description}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Location</p>
+                          <p className="text-sm font-semibold text-slate-700">📍 {job.companyId?.location}</p>
                         </div>
-                        <div className="text-right">
-                          <span className={`px-3 py-1 rounded text-sm font-medium ${
-                            application.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                            application.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                          </span>
-                          <p className="text-gray-500 text-xs mt-1">
-                            Applied: {new Date(application.appliedDate).toLocaleDateString()}
-                          </p>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Stipend/Salary</p>
+                          <p className="text-sm font-semibold text-slate-700">💰 {job.salary ? `₹${job.salary}` : 'TBD'}</p>
                         </div>
+                      </div>
+
+                      <div className="mt-auto pt-4 border-t border-slate-50">
+                        {isApplied(job._id) ? (
+                          <div className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase text-center tracking-widest transition-colors ${getApplicationStatus(job._id) === 'accepted' ? 'bg-green-50 text-green-700' : 'bg-cyan-50 text-cyan-700'}`}>
+                            {getApplicationStatus(job._id) || 'Application Sent'}
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); applyForJob(job._id) }}
+                            disabled={applying === job._id}
+                            className="w-full bg-cyan-600 text-white py-3 rounded-xl text-xs font-bold hover:bg-cyan-700 shadow-lg shadow-cyan-100 transition active:scale-95"
+                          >
+                            {applying === job._id ? 'Processing...' : 'Quick Apply'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
+                  {filteredJobs.length === 0 && <div className="col-span-full py-20 text-center text-slate-400 font-medium italic border-2 border-dashed border-slate-100 rounded-3xl">No jobs match your current branch filter.</div>}
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">You haven't applied for any jobs yet.</p>
+              </>
+            ) : (
+              <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                  <h2 className="text-lg font-bold text-slate-900">Application History</h2>
+                  <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded uppercase">Logs</span>
                 </div>
-              )}
+                <div className="divide-y divide-slate-50">
+                  {applications.map((app) => (
+                    <div key={app._id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 rounded-2xl bg-cyan-50 flex items-center justify-center text-cyan-600 font-bold shadow-inner">
+                            {app.jobId?.title?.charAt(0)}
+                         </div>
+                         <div>
+                            <h3 className="font-bold text-slate-900 text-md">{app.jobId?.title}</h3>
+                            <p className="text-cyan-600 font-bold text-[10px] uppercase tracking-wider">{app.companyId?.name}</p>
+                            <p className="text-slate-400 text-[10px] mt-1 font-semibold uppercase">Applied: {new Date(app.appliedDate).toLocaleDateString()}</p>
+                         </div>
+                      </div>
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-center ${app.status === 'accepted' ? 'bg-green-100 text-green-700' : app.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-cyan-50 text-cyan-700 border border-cyan-100'}`}>
+                        {app.status}
+                      </span>
+                    </div>
+                  ))}
+                  {applications.length === 0 && <div className="p-20 text-center text-slate-400 font-medium italic">You have no active applications.</div>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ADMIN: Send Modal */}
+        {role === 'admin' && showSendModal && selectedJob && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2rem] max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl scale-in-95 animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Publish Opportunity</h2>
+                  <p className="text-xs text-slate-500 font-semibold mt-0.5">Role: {selectedJob.title}</p>
+                </div>
+                <button onClick={() => setShowSendModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600"><X size={20} /></button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                {/* Send to All Toggle */}
+                <div 
+                  onClick={() => setSendToAll(!sendToAll)}
+                  className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${sendToAll ? 'bg-cyan-50 border-cyan-500 shadow-lg shadow-cyan-100' : 'bg-slate-50 border-slate-100 hover:border-slate-200'}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${sendToAll ? 'bg-cyan-600' : 'bg-white border-2 border-slate-200'}`}>
+                      {sendToAll && <CheckCircle size={14} className="text-white" />}
+                    </div>
+                    <div>
+                      <p className={`font-bold text-sm ${sendToAll ? 'text-cyan-800' : 'text-slate-700'}`}>Broadcasting Mode</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Send to all {students.length} students</p>
+                    </div>
+                  </div>
+                  <Users size={20} className={sendToAll ? 'text-cyan-600' : 'text-slate-300'} />
+                </div>
+
+                {!sendToAll && (
+                  <div className="animate-in slide-in-from-top-4 duration-300 space-y-6">
+                    <div className="bg-slate-100 p-4 rounded-2xl flex flex-col md:flex-row gap-3">
+                      <select value={searchType} onChange={(e) => { setSearchType(e.target.value); setSearchCriteria(''); setSelectedBranch(''); }} className="md:w-36 p-2.5 bg-white border-none rounded-xl text-xs font-bold text-slate-600 shadow-sm outline-none">
+                        <option value="name">NAME</option>
+                        <option value="rollNumber">ROLL NO.</option>
+                        <option value="branch">BRANCH</option>
+                        <option value="domain">DOMAIN</option>
+                      </select>
+                      {renderSearchInput()}
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between items-center mb-4 px-2">
+                        <button onClick={handleSelectAll} className="text-cyan-600 font-bold text-[10px] hover:underline uppercase tracking-widest tracking-tighter">Toggle Result Page</button>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedStudents.length} Students Picked</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                        {filteredStudents.map((s) => (
+                          <div 
+                            key={s._id} 
+                            onClick={() => handleStudentToggle(s._id)}
+                            className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${selectedStudents.includes(s._id) ? 'bg-cyan-50 border-cyan-200' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+                          >
+                            <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${selectedStudents.includes(s._id) ? 'bg-cyan-600 border-cyan-600 shadow-md shadow-cyan-100' : 'bg-white border-slate-300'}`}>
+                              {selectedStudents.includes(s._id) && <CheckCircle size={10} className="text-white" />}
+                            </div>
+                            <div className="ml-3 truncate">
+                              <p className="font-bold text-xs text-slate-800 truncate">{s.name}</p>
+                              <p className="text-[9px] text-slate-500 font-bold uppercase truncate">{s.rollNumber} • {s.branch}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+                <button onClick={() => setShowSendModal(false)} className="px-6 py-2.5 text-slate-500 text-xs font-bold hover:text-slate-800 transition">Discard</button>
+                <button 
+                  onClick={sendJobToStudents} 
+                  disabled={sending || (!sendToAll && selectedStudents.length === 0)} 
+                  className="px-8 py-3 bg-cyan-600 text-white rounded-xl font-black text-xs shadow-xl shadow-cyan-100 disabled:opacity-50 hover:bg-cyan-700 transition flex items-center gap-2"
+                >
+                  <Send size={14} /> {sending ? 'PUBLISHING...' : 'PUBLISH NOW'}
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Job Detail Modal */}
-        <JobDetailModal
-          job={selectedJob}
-          isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setSelectedJob(null) }}
-          onApply={applyForJob}
-          applying={applying}
-          isApplied={selectedJob ? isApplied(selectedJob._id) : false}
-          applicationStatus={selectedJob ? getApplicationStatus(selectedJob._id) : null}
-          role={role}
-        />
+        {/* STUDENT: Detail Modal */}
+        {role === 'student' && (
+          <JobDetailModal
+            job={selectedJob}
+            isOpen={isModalOpen}
+            onClose={() => { setIsModalOpen(false); setSelectedJob(null) }}
+            onApply={applyForJob}
+            applying={applying}
+            isApplied={selectedJob ? isApplied(selectedJob._id) : false}
+            applicationStatus={selectedJob ? getApplicationStatus(selectedJob._id) : null}
+          />
+        )}
       </div>
     </div>
   )

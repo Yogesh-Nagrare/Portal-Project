@@ -157,7 +157,7 @@ function EditProfile() {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/company/dashboard')}
             className="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             Cancel
