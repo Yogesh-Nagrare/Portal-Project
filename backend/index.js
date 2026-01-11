@@ -172,6 +172,4 @@ app.use('/logout', logout);
 // ----------------------
 // Start Server
 // ----------------------
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+module.exports = app;   // 👈 REQUIRED
