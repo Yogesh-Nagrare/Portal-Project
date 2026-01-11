@@ -1,12 +1,5 @@
 {
   "rewrites": [
-    {
-      "source": "/google/redirect/:role",
-      "destination": "https://portal-project-black.vercel.app/auth/google/:role"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

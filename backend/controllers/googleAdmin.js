@@ -6,7 +6,7 @@ require('dotenv').config();
 passport.use('google-admin', new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/admin/callback",
+    callbackURL: process.env.ADMIN_CALLBACK
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
