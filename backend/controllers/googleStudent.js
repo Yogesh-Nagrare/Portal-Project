@@ -6,7 +6,7 @@ require('dotenv').config();
 passport.use('google-student', new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.STUDENT_CALLBACK
+    callbackURL: "/auth/google/student/callback",
 },
 async (accessToken, refreshToken, profile, done) => {
     try {

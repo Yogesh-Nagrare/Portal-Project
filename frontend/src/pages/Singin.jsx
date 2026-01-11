@@ -12,7 +12,7 @@ export default function Signin() {
   const { user, loading, error } = useSelector((state) => state.auth)
 
   const handleGoogleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/google/${role}`
+window.location.href = `/google/redirect/${role}`;
   }
 
   useEffect(() => {
