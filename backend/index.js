@@ -1,16 +1,89 @@
 require('dotenv').config();
+
 const express = require('express');
 const app = express();
+
 const passport = require('passport');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
-const mongoose = require('mongoose');
-const connectDB  = require('./config/db');
+const cors = require('cors');
+
+const connectDB = require('./config/db');
 const { requireAuth } = require('./middleware/auth');
 
+// =======================
+// DB CONNECT (SAFE)
+// =======================
+connectDB();
+
+// =======================
+// MIDDLEWARES
+// =======================
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  credentials: true
+}));
+
+// =======================
+// SESSION CONFIG
+// =======================
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'mysecret',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    collectionName: 'sessions'
+  }),
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'none',
+    secure: true
+  }
+}));
+
+// =======================
+// PASSPORT
+// =======================
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.serializeUser((user, done) => done(null, user._id));
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    let user = await require('./models/admin').findById(id);
+    if (!user) user = await require('./models/company').findById(id);
+    if (!user) user = await require('./models/student').findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err, null);
+  }
+});
+
+// =======================
+// GOOGLE STRATEGIES
+// =======================
 require('./controllers/googleStudent');
 require('./controllers/googleCompany');
 require('./controllers/googleAdmin');
+
+// =======================
+// ROOT ROUTE (IMPORTANT)
+// =======================
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Backend is running successfully on Vercel 🚀'
+  });
+});
+
+// =======================
+// ROUTES
+// =======================
 const logout = require('./routes/logout');
 const searchStudent = require('./routes/admincontrollerroute/studentsea');
 const searchCompany = require('./routes/companysea');
@@ -21,61 +94,20 @@ const jobRoutes = require('./routes/companycontrollerroute/jobroutes');
 const studentProfile = require('./routes/studentroute/studentprofile');
 const studentJobApplication = require('./routes/studentroute/jobapplication');
 
-const port = process.env.PORT || 3000;
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-connectDB ();
-const cors = require('cors');
-app.use(cors({
-  origin: process.env.CLIENT_URL, 
-  credentials: true
-}));
-
-app.use(session({
-  secret: 'mysecret',
-  resave: false,
-  saveUninitialized: true,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI ,
-    collectionName: 'sessions'
-  }),
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000 ,// 24 hours
-    sameSite: 'none',
-    secure: true
-  }
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Serialize / Deserialize user
-passport.serializeUser((user, done) => done(null, user._id));
-passport.deserializeUser(async (id, done) => {
-  try {
-    // Try to find user in different models
-    let user = await require('./models/admin').findById(id);
-    if (!user) user = await require('./models/company').findById(id);
-    if (!user) user = await require('./models/student').findById(id);
-    done(null, user);
-  } catch (err) {
-    done(err, null);
-  }
-});
-
-
-// Routes
 app.use('/api/admin/students', searchStudent);
 app.use('/api/admin/companies', searchCompany);
 app.use('/api/admin/companies', companyVerification);
 app.use('/api/admin', adminProfile);
+
 app.use('/api/company', companyProfile);
 app.use('/api/company', jobRoutes);
+
 app.use('/api/student', studentProfile);
 app.use('/api/student', studentJobApplication);
 
-// Auth check endpoint
+// =======================
+// AUTH CHECK
+// =======================
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({
     _id: req.user._id,
@@ -85,10 +117,9 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   });
 });
 
-
-
-
-// ========== STUDENT LOGIN ==========
+// =======================
+// STUDENT LOGIN
+// =======================
 app.get('/auth/google/student',
   passport.authenticate('google-student', { scope: ['profile', 'email'] })
 );
@@ -96,24 +127,28 @@ app.get('/auth/google/student',
 app.get('/auth/google/student/callback',
   passport.authenticate('google-student', { failureRedirect: '/' }),
   (req, res) => {
-    // Generate JWT token
     const jwt = require('jsonwebtoken');
+
     const token = jwt.sign(
       { _id: req.user._id, role: 'student' },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
     const userData = encodeURIComponent(JSON.stringify({
       _id: req.user._id,
       name: req.user.name,
       email: req.user.emailId,
       role: 'student'
     }));
+
     res.redirect(`${process.env.CLIENT_URL}/Signin/student?token=${token}&user=${userData}`);
   }
 );
 
-// ========== COMPANY LOGIN ==========
+// =======================
+// COMPANY LOGIN
+// =======================
 app.get('/auth/google/company',
   passport.authenticate('google-company', { scope: ['profile', 'email'] })
 );
@@ -121,24 +156,28 @@ app.get('/auth/google/company',
 app.get('/auth/google/company/callback',
   passport.authenticate('google-company', { failureRedirect: '/' }),
   (req, res) => {
-    // Generate JWT token
     const jwt = require('jsonwebtoken');
+
     const token = jwt.sign(
       { _id: req.user._id, role: 'company' },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
     const userData = encodeURIComponent(JSON.stringify({
       _id: req.user._id,
       name: req.user.name,
       email: req.user.emailId,
       role: 'company'
     }));
+
     res.redirect(`${process.env.CLIENT_URL}/Signin/company?token=${token}&user=${userData}`);
   }
 );
 
-// ========== ADMIN LOGIN ==========
+// =======================
+// ADMIN LOGIN
+// =======================
 app.get('/auth/google/admin',
   passport.authenticate('google-admin', { scope: ['profile', 'email'] })
 );
@@ -146,30 +185,31 @@ app.get('/auth/google/admin',
 app.get('/auth/google/admin/callback',
   passport.authenticate('google-admin', { failureRedirect: '/' }),
   (req, res) => {
-    // Generate JWT token
     const jwt = require('jsonwebtoken');
+
     const token = jwt.sign(
       { _id: req.user._id, role: 'admin' },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
     const userData = encodeURIComponent(JSON.stringify({
       _id: req.user._id,
       name: req.user.name,
       email: req.user.emailId,
       role: 'admin'
     }));
+
     res.redirect(`${process.env.CLIENT_URL}/Signin/admin?token=${token}&user=${userData}`);
   }
 );
 
-
-// ----------------------
-// Logout Route
-// ----------------------
+// =======================
+// LOGOUT
+// =======================
 app.use('/logout', logout);
 
-// ----------------------
-// Start Server
-// ----------------------
-module.exports = app;   // 👈 REQUIRED
+// =======================
+// EXPORT (NO LISTEN ❗)
+// =======================
+module.exports = app;
