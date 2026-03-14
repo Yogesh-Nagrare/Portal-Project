@@ -48,9 +48,9 @@ function Header() {
             <h1 className="text-lg font-extrabold text-slate-900">
               Placement Cell
             </h1>
-            <p className="text-[11px] font-bold tracking-widest text-cyan-600 uppercase">
+            {/* <p className="text-[11px] font-bold tracking-widest text-cyan-600 uppercase">
               YCCE Nagpur
-            </p>
+            </p> */}
           </div>
         </Link>
 

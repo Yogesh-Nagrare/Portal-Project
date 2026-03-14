@@ -13,10 +13,10 @@ async (accessToken, refreshToken, profile, done) => {
         const email = profile.emails[0].value;
         const domain = email.split('@')[1];
 
-        if (domain !== 'ycce.in') {
-            console.log(` Unauthorized login attempt: ${email}`);
-            return done(null, false, { message: 'Only college emails allowed' });
-        }
+        // if (domain !== 'ycce.in') {
+        //     console.log(` Unauthorized login attempt: ${email}`);
+        //     return done(null, false, { message: 'Only college emails allowed' });
+        // }
 
         let user = await Student.findOne({ googleId: profile.id, emailId: email });
         if (!user) {
